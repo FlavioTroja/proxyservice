@@ -1,0 +1,9 @@
+version: '3.3'
+
+services:
+  proxyservice:
+    image: proxyservice/server
+    container_name: proxyservice
+    restart: always
+    build:
+      context: .
