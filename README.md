@@ -1,16 +1,12 @@
 # proxyservice
 
-*ProxyService* è un microservizio scritto in [Go](https://golang.org) atto a comunicare con le ASL Regionali per la gestione dei processi liveness e face recognition e,
-conseguentemente, dei processi di firma asincrona nel contesto del progetto [Gaya](https://gayadeed.it/).
+*ProxyService* è un microservizio scritto in [Go](https://golang.org) atto a comunicare con ASL Regionali per i quali sono stete imposte restrizioni relative all'indirizzo IP del chiamante.
 
-Vi sono presenti anche altri moduli di utilità oltre a quelli elencati sopra.
-
-Le chiamate HTTP di questo microservizio sono autenticate (e autorizzate) mediante il token ottenuto dal server di 
-autenticazione Keycloak.
+Le chiamate HTTP di questo microservizio non sono autenticate ma l'autenticazione è necessaria poiché viene trasmessa al server remoto.
 
 
-- `POST /`
-Imposta un particolare firmatario come "verificato". Risulterà verificato anche per tutte le pratiche asincrone future (all'interno del group). Il campo `signerId` si presenta sempre nel formato `{gayaGroup}-{userId}`.
+- `POST /proxy`
+Imposta una particolare chiamata nel quale sono richiesti l'url, il metodo e il body da passare al server remoto.
 
 
 ## API Documentation
