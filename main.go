@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/gorilla/mux"
+	"github.com/rs/cors"
 )
 
 const proxyPort = 5000
@@ -17,8 +20,10 @@ type RequestPayload struct {
 }
 
 func main() {
-	// Definisci il gestore per le richieste XML in ingresso
-	http.HandleFunc("/proxy", func(w http.ResponseWriter, r *http.Request) {
+	// Crea un router utilizzando "gorilla/mux"
+	r := mux.NewRouter()
+
+	r.HandleFunc("/proxy", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Richiesta non valida. Deve essere una richiesta POST JSON.", http.StatusMethodNotAllowed)
 			return
@@ -68,7 +73,17 @@ func main() {
 		w.Write(respBody)
 	})
 
+	// Configura il middleware CORS
+	c := cors.New(cors.Options{
+		AllowedOrigins: []string{"*"}, // Puoi specificare gli origin consentiti
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE"},
+		AllowedHeaders: []string{"Authorization", "Content-Type"},
+	})
+
+	// Avvolgi il router con il middleware CORS
+	handler := c.Handler(r)
+
 	// Avvia il server proxy
-	fmt.Printf("Server proxy XML in esecuzione su :%d\n", proxyPort)
-	http.ListenAndServe(fmt.Sprintf(":%d", proxyPort), nil)
+	fmt.Printf("Server proxy in esecuzione su :%d\n", proxyPort)
+	http.ListenAndServe(fmt.Sprintf(":%d", proxyPort), handler)
 }
