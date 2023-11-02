@@ -3,77 +3,72 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
-	"log"
 	"net/http"
-
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
-	"github.com/pkg/errors"
 )
 
-func Invoke[T any](url string, method string, payload any) (resp *T, err error) {
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-	req, err := http.NewRequest(method, url, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
+const proxyPort = 5000
 
-	client := http.Client{}
-	res, err := client.Do(req)
-	log.Println(res)
-
-	if err != nil {
-		return nil, errors.Wrap(err, "making request to endpoint")
-	}
-
-	resBody, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, errors.Wrap(err, "reading ADB response body")
-	}
-
-	err = json.Unmarshal(resBody, &resp)
-	if err != nil {
-		return nil, errors.Wrap(err, "decoding JSON response body")
-	}
-
-	if res.StatusCode != http.StatusOK {
-		return nil, errors.Errorf("response not OK from ADB, with body: %+v", resp)
-	}
-
-	return resp, nil
-}
-
-type AddParams struct {
-	Url     string `json:"url" binding:"required,gte=1"`
-	Method  string `json:"method"`
-	Payload string `json:"payload"`
-}
-
-func call(c *gin.Context) {
-	var ap AddParams
-	if err := c.ShouldBindJSON(&ap); err != nil {
-		c.JSON(400, gin.H{"error": "Invalid input!"})
-		return
-	}
-
-	res, err := Invoke[string](ap.Url, ap.Method, ap.Payload)
-	if err != nil {
-		c.JSON(400, gin.H{"error": err})
-	}
-
-	log.Println("Response from endpoint: " + *res)
-
-	c.JSON(200, gin.H{"response": *res})
+type RequestPayload struct {
+	RemoteURL    string `json:"remoteURL"`
+	RemoteMethod string `json:"remoteMethod"`
+	RemoteBody   string `json:"remoteBody"`
 }
 
 func main() {
-	router := gin.Default()
-	router.Use(cors.Default())
-	router.POST("/", call)
+	// Definisci il gestore per le richieste XML in ingresso
+	http.HandleFunc("/proxy", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Richiesta non valida. Deve essere una richiesta POST JSON.", http.StatusMethodNotAllowed)
+			return
+		}
 
-	router.Run(":5000")
+		// Leggi il corpo della richiesta JSON in ingresso
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Errore nella lettura del corpo della richiesta.", http.StatusInternalServerError)
+			return
+		}
+
+		var requestPayload RequestPayload
+		err = json.Unmarshal(body, &requestPayload)
+		if err != nil {
+			http.Error(w, "Errore nella decodifica del corpo JSON.", http.StatusBadRequest)
+			return
+		}
+
+		// Effettua la richiesta HTTP al server remoto con le specifiche fornite
+		client := &http.Client{}
+		req, err := http.NewRequest(requestPayload.RemoteMethod, requestPayload.RemoteURL, bytes.NewBuffer([]byte(requestPayload.RemoteBody)))
+		req.Header.Set("Content-Type", "application/xml")
+		req.Header.Set("Authorization", r.Header.Get("Authorization"))
+		if err != nil {
+			http.Error(w, "Errore nella creazione della richiesta al server remoto.", http.StatusInternalServerError)
+			return
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			http.Error(w, "Errore nella richiesta al server remoto.", http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+
+		// Leggi la risposta dal server remoto
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			http.Error(w, "Errore nella lettura della risposta dal server remoto.", http.StatusInternalServerError)
+			return
+		}
+
+		// Restituisci la risposta al client
+		w.Header().Set("Content-Type", "application/xml")
+		w.WriteHeader(http.StatusOK)
+		w.Write(respBody)
+	})
+
+	// Avvia il server proxy
+	fmt.Printf("Server proxy XML in esecuzione su :%d\n", proxyPort)
+	http.ListenAndServe(fmt.Sprintf(":%d", proxyPort), nil)
 }
