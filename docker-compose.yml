@@ -5,5 +5,7 @@ services:
     image: proxyservice/server
     container_name: proxyservice
     restart: always
+    ports:
+      - "5001:5000"
     build:
       context: .

@@ -1,11 +1,10 @@
 # Build stage
-FROM golang:1.18.3-alpine3.16 AS builder
+FROM golang:1.21.3-alpine3.18 AS builder
 LABEL org.opencontainers.image.authors="f.troia@davinci.care"
 
 WORKDIR /app
 ADD . .
 
-# DAVIDE 20220203 - applicato fix per errore build
 RUN go mod download ;\
 	go build -o proxyservice || go get github.com/prometheus/common/log@v0.26.0 ;\
 	test -f proxyservice || go build -o proxyservice
@@ -21,5 +20,5 @@ RUN apk add ca-certificates tzdata \
 
 WORKDIR /app
 COPY --from=builder /app/proxyservice .
-
+EXPOSE 5000
 CMD ["/app/proxyservice"]
